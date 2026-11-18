@@ -1,6 +1,6 @@
 import numpy as np
 
-from TransMission.transmission import build_tf_design, penalty_weights, weighted_lasso
+from psi_pt.transmission import build_tf_design, penalty_weights, weighted_lasso
 
 
 # Grids, folds
@@ -85,13 +85,4 @@ def practical_transmission_CV(X0, y0, X_list, y_list, folds=None, V=3):
         best = None
         coef, branch = beta_T_cv, "fallback"
 
-    return {
-        "coef": coef,
-        "branch": branch,
-        "feature_selection": np.flatnonzero(np.abs(coef) != 0),
-        "lam0_hat": None if best is None else lamb0_grid[best],
-        "lam0_grid": lamb0_grid, "lamT_grid": lambt_grid,
-        "Lcv": Lcv, "Lcv_T": Lcv_T, "G": G, "R": R, "B": B,
-        "feasible": feasible, "beta_T_cv": beta_T_cv,
-        "beta_path": beta_full,
-    }
+    return {"coef": coef, "branch": branch, "feature_selection": np.flatnonzero(np.abs(coef) != 0), "lam0_hat": None if best is None else lamb0_grid[best], "lam0_grid": lamb0_grid, "lamT_grid": lambt_grid, "Lcv": Lcv, "Lcv_T": Lcv_T, "G": G, "R": R, "B": B, "feasible": feasible, "beta_T_cv": beta_T_cv, "beta_path": beta_full}

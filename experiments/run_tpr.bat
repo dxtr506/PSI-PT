@@ -1,24 +1,35 @@
 @echo off
-rem TPR (power) for n_T = 50, 100, 150, 200.
-rem Target support: first S coordinates with signal DELTA (He et al.: S=16, DELTA=0.3).
-rem Source contrasts: N(0, (H/50)^2) on 50 random coordinates per source (He et al.: h = 5,...,25).
-rem 1. Data splitting: results\tpr_split_results.json (cheap, runs first).
-rem 2. Proposed, over-conditioning and naive (same feature in each repetition): results\tpr_results.json.
-rem Each n_T stops once the method has N_TESTS p-values, or after N_REP (SI) / N_REP_SPLIT repetitions.
-rem Results are saved every SAVE_EVERY repetitions.
-rem If python is not on PATH, set PY to its full path, e.g. C:\Ananconda\python.exe
-setlocal
-set "PY=python"
-set "N_JOBS=16"
-set "N_TESTS=200"
-set "N_REP=3000"
-set "N_REP_SPLIT=20000"
-set "SAVE_EVERY=10"
-set "S=16"
-set "H=10"
-set "DELTA=0.3"
+rem TPR experiments: PSI-PT, PSI-PT-oc and Bonferroni (method si) and data splitting (method split).
+rem   TPR vs n0 (n0 = 40, 50, 60, 70, delta = 0.5) and TPR vs delta (n0 = 50, delta = 0.25, 0.5, 0.75, 1.0);
+rem   p = 500, K = 4 sources of size 200, S = 10 true features, contrast size h = 10.
+rem   Each setting: 5 chunks of 100 p-values; chunk c uses the seed seed0 + 4000 c.
+rem Run from anywhere:  experiments\run_tpr.bat
+rem Environment: PY (python executable, default python), N_JOBS (processes per p-value, default 4).
+rem Results: results\tpr\*.json; figures: results\tpr_nt.pdf, results\tpr_delta_h10_nt50.pdf (+ .png)
+setlocal EnableDelayedExpansion
+cd /d "%~dp0.."
+set "PYTHONPATH=%CD%"
+set "OMP_NUM_THREADS=1" & set "MKL_NUM_THREADS=1" & set "OPENBLAS_NUM_THREADS=1"
+if not defined PY set "PY=python"
+if not defined N_JOBS set "N_JOBS=4"
+set "OUT=results\tpr"
+if not exist "%OUT%" mkdir "%OUT%"
 
-cd /d "%~dp0"
-"%PY%" run_experiment.py --mode tpr --method split --nts 50 100 150 200 --n_tests %N_TESTS% --n_rep %N_REP_SPLIT% --save_every 100 --S %S% --H %H% --delta %DELTA% --out results\tpr_split_results.json
-"%PY%" run_experiment.py --mode tpr --method si --nts 50 100 150 200 --n_tests %N_TESTS% --n_rep %N_REP% --n_jobs %N_JOBS% --save_every %SAVE_EVERY% --S %S% --H %H% --delta %DELTA% --out results\tpr_results.json
-pause
+for %%m in (split si) do (
+    for %%n in (40 50 60 70) do call :tpr %%m %%n 0.5 320000
+    call :tpr %%m 50 0.25 300000
+    call :tpr %%m 50 0.75 340000
+    call :tpr %%m 50 1.0 360000
+)
+"%PY%" experiments\plot.py tpr
+goto :eof
+
+rem :tpr <method> <n0> <delta> <seed0>
+:tpr
+for /L %%c in (0,1,4) do (
+    set /a seed=%4 + 4000 * %%c
+    "%PY%" experiments\run_experiment.py --mode tpr --method %1 --nts %2 --S 10 --H 10 --delta %3 ^
+        --seed !seed! --n_rep 3000 --n_tests 100 --n_jobs %N_JOBS% --save_every 10 ^
+        --out %OUT%\tpr_%1_s10_h10_ng_nt%2_delta%3_seed!seed!.json
+)
+exit /b 0

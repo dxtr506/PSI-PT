@@ -6,9 +6,9 @@ import time
 import numpy as np
 from scipy import stats
 
-from data_generation import NOISES, generate_contrasts, generate_design, generate_response
-from SI.Practical_TM_SI import data_split_randj, practical_TM_SI_randj
-from TransMission.practical_transmission import make_grids
+from data_generation import generate_contrasts, generate_design, generate_response
+from psi_pt.inference import data_split_randj, psi_pt_randj
+from psi_pt.practical_transmission import make_grids
 
 # p-value field of each method in a repetition record, for each run type
 METHODS = {"si": {"proposed": "p_value", "over_conditioning": "p_value_oc", "naive": "p_value_naive"},
@@ -47,9 +47,8 @@ def save(path, config, results):
 
 def run_si(args, X0, X_list, y0, y_list, Sigma_0, Sigma_K, rng, candidates, i, kkt, entry):
     # Proposed, over-conditioning and naive p-values of one repetition (same feature).
-    result = practical_TM_SI_randj(X0, y0, X_list, y_list, Sigma_0, Sigma_K,
-                                   V=args.V, rng=rng, candidates=candidates, n_jobs=args.n_jobs,
-                                   n_segments=args.n_segments)
+    result = psi_pt_randj(X0, y0, X_list, y_list, Sigma_0, Sigma_K,
+                                   V=args.V, rng=rng, candidates=candidates, n_jobs=args.n_jobs)
     kkt["observed_fits"] += result["kkt_observed"]["fits"]
     kkt["observed_violations"] += result["kkt_observed"]["violations"]
     rep = {"rep": i, "model_size": len(result["selected_model"]), "branch": result["branch"],
@@ -74,9 +73,7 @@ def run_si(args, X0, X_list, y0, y_list, Sigma_0, Sigma_K, rng, candidates, i, k
 def run_split(args, X0, X_list, y0, y_list, Sigma_0, rng, candidates, i):
     # Data splitting p-value of one repetition.
     split = data_split_randj(X0, y0, X_list, y_list, Sigma_0, V=args.V, rng=rng, candidates=candidates)
-    return {"rep": i, "model_size": len(split["selected_model"]), "branch": split["branch"],
-            "status": split["status"], "tested": split["status"] == "tested",
-            "feature": split["feature"], "p_value": split["p_value"], "invalid": False}
+    return {"rep": i, "model_size": len(split["selected_model"]), "branch": split["branch"], "status": split["status"], "tested": split["status"] == "tested", "feature": split["feature"], "p_value": split["p_value"], "invalid": False}
 
 
 def run_one(args, nt, config, results):
@@ -100,7 +97,7 @@ def run_one(args, nt, config, results):
     for i in range(1, args.n_rep + 1):
         X0, X_list = generate_design(rng, args.p, nt, args.ns, args.K)
         contrasts = generate_contrasts(rng, args.p, args.K, args.H)
-        y0, y_list = generate_response(rng, X0, X_list, args.sigma, beta0, contrasts, args.noise)
+        y0, y_list = generate_response(rng, X0, X_list, args.sigma, beta0, contrasts)
         t = time.perf_counter()
         if args.method == "si":
             rep = run_si(args, X0, X_list, y0, y_list, Sigma_0, Sigma_K, rng, candidates, i, kkt, entry)
@@ -131,23 +128,19 @@ def main():
     parser.add_argument("--mode", choices=["fpr", "tpr"], required=True)
     parser.add_argument("--method", choices=["si", "split"], default="si",
                         help="si: proposed, over-conditioning and naive; split: data splitting")
-    parser.add_argument("--nts", type=int, nargs="+", default=[50, 100, 150, 200])
+    parser.add_argument("--nts", type=int, nargs="+", default=[40, 50, 60, 70])
     parser.add_argument("--n_rep", type=int, default=500, help="maximum number of repetitions per n_T")
     parser.add_argument("--n_tests", type=int, default=None,
                         help="stop an n_T once the method (proposed, or data splitting) has this many p-values")
-    parser.add_argument("--n_jobs", type=int, default=16)
-    parser.add_argument("--n_segments", type=int, default=None,
-                        help="z-line segments shared by the n_jobs processes (default: spread the fits instead)")
+    parser.add_argument("--n_jobs", type=int, default=4)
     parser.add_argument("--p", type=int, default=500)
     parser.add_argument("--ns", type=int, default=200)
     parser.add_argument("--K", type=int, default=4)
     parser.add_argument("--V", type=int, default=3)
     parser.add_argument("--sigma", type=float, default=1.0)
-    parser.add_argument("--noise", choices=NOISES, default="normal",
-                        help="error distribution, standardized to mean 0 and variance 1 (robustness)")
-    parser.add_argument("--S", type=int, default=16, help="tpr: target support size")
+    parser.add_argument("--S", type=int, default=10, help="tpr: target support size")
     parser.add_argument("--H", type=float, default=10.0, help="source contrast size")
-    parser.add_argument("--delta", type=float, default=0.3, help="tpr: signal strength")
+    parser.add_argument("--delta", type=float, default=0.5, help="tpr: signal strength")
     parser.add_argument("--alpha", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=185)
     parser.add_argument("--save_every", type=int, default=10)

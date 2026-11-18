@@ -3,12 +3,23 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "transmission-si"
+name = "psi-pt"
 version = "0.1.0"
+description = "PSI-PT: post-selection inference for high-dimensional parameter transfer with a fused regularizer"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "skglm",
+    "joblib",
+    "mpmath",
+]
+
+[project.optional-dependencies]
+experiments = ["matplotlib"]
 
 [tool.setuptools]
+packages = ["psi_pt"]
 py-modules = ["data_generation"]
-
-[tool.setuptools.packages.find]
-include = ["TransMission", "SI"]
-namespaces = true

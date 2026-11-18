@@ -2,11 +2,11 @@ import numpy as np
 from joblib import Parallel, delayed
 from scipy.stats import norm
 
-from TransMission.transmission import build_tf_design, kkt_count, penalty_weights, weighted_lasso
-from TransMission.practical_transmission import make_folds, make_grids, practical_transmission_CV
-from SI.sub_prob import (compute_B, compute_crossings, compute_cv_loss, compute_J, compute_R, compute_ZG,
+from psi_pt.transmission import build_tf_design, kkt_count, penalty_weights, weighted_lasso
+from psi_pt.practical_transmission import make_folds, make_grids, practical_transmission_CV
+from psi_pt.sub_prob import (compute_B, compute_crossings, compute_cv_loss, compute_J, compute_R, compute_ZG,
                          compute_ZR, compute_Zu, compute_Zv)
-from SI.utils import calculate_a_b, calculate_p_value, construct_Sigma, construct_test_statistic, merge_intervals
+from psi_pt.utils import calculate_a_b, calculate_p_value, construct_Sigma, construct_test_statistic, merge_intervals
 
 # Conditioning event {z : M(Y(z)) = M_obs}, decided box by box (sub_prob.py holds the formulas):
 #   1. Lasso states   refit, compute_Z        compute_Zu, compute_Zv
@@ -278,7 +278,7 @@ def parallel_divide_and_conquer_practical(S, a, b, M, z_min, z_max, n_jobs, n_se
 
 
 
-def practical_TM_SI(X0, y0, X_list, y_list, Sigma_0, Sigma_K, V=3, n_jobs=1, n_segments=None):
+def psi_pt(X0, y0, X_list, y_list, Sigma_0, Sigma_K, V=3, n_jobs=1, n_segments=None):
     # Test every feature of the observed model.
     before = dict(kkt_count)
     observed = practical_transmission_CV(X0, y0, X_list, y_list, V=V)
@@ -301,7 +301,7 @@ def practical_TM_SI(X0, y0, X_list, y_list, Sigma_0, Sigma_K, V=3, n_jobs=1, n_s
     return {"selected_model": M, "branch": observed["branch"], "results": results, "kkt_observed": kkt_observed}
 
 
-def practical_TM_SI_randj(X0, y0, X_list, y_list, Sigma_0, Sigma_K, V=3,
+def psi_pt_randj(X0, y0, X_list, y_list, Sigma_0, Sigma_K, V=3,
                           rng=None, candidates=None, n_jobs=1, n_segments=None):
     # Test one feature drawn uniformly from the observed model (or from its
     # intersection with `candidates`, e.g. the true support for TPR).
@@ -360,6 +360,6 @@ def data_split_randj(X0, y0, X_list, y_list, Sigma_0, V=3, rng=None, candidates=
     rng = np.random.default_rng(rng)
     j = pool[rng.integers(len(pool))]
     eta, z = construct_test_statistic(j, X0[second], y0[second], M)
-    sd = np.sqrt(eta @ (Sigma_0[np.ix_(second, second)] @ eta))
+    sd =np.sqrt(eta @ (Sigma_0[np.ix_(second, second)] @ eta))
     out["feature"], out["p_value"] = int(j), float(2.0 * norm.sf(abs(z) / sd))
     return out

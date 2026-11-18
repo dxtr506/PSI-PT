@@ -1,19 +1,36 @@
 @echo off
-rem FPR (pivot under the global null) for n_T = 50, 100, 150, 200.
-rem 1. Data splitting: results\fpr_split_results.json (cheap, runs first).
-rem 2. Proposed, over-conditioning and naive (same feature in each repetition): results\fpr_results.json.
-rem Each n_T stops once the method has N_TESTS p-values, or after N_REP (SI) / N_REP_SPLIT repetitions.
-rem Results are saved every SAVE_EVERY repetitions.
-rem If python is not on PATH, set PY to its full path, e.g. C:\Ananconda\python.exe
-setlocal
-set "PY=python"
-set "N_JOBS=16"
-set "N_TESTS=200"
-set "N_REP=3000"
-set "N_REP_SPLIT=20000"
-set "SAVE_EVERY=10"
+rem FPR experiments (target coefficients beta0 = 0): PSI-PT, PSI-PT-oc, Bonferroni and naive (method si)
+rem and data splitting (method split), for n0 = 40, 50, 60, 70; p = 500, K = 4 sources of size 200, h = 10.
+rem   Chunks of 100 p-values; chunk c uses the seed seed0 + 4000 c, with seed0 = 400000 + 4000 (n0 - 40).
+rem   si: 10 chunks from seed0 and 5 chunks from seed0 + 400000 (1500 p-values); split: 10 chunks (1000 p-values).
+rem Run from anywhere:  experiments\run_fpr.bat
+rem Environment: PY (python executable, default python), N_JOBS (processes per p-value, default 4).
+rem Results: results\fpr\*.json; figure: results\fpr.pdf (+ .png)
+setlocal EnableDelayedExpansion
+cd /d "%~dp0.."
+set "PYTHONPATH=%CD%"
+set "OMP_NUM_THREADS=1" & set "MKL_NUM_THREADS=1" & set "OPENBLAS_NUM_THREADS=1"
+if not defined PY set "PY=python"
+if not defined N_JOBS set "N_JOBS=4"
+set "OUT=results\fpr"
+if not exist "%OUT%" mkdir "%OUT%"
 
-cd /d "%~dp0"
-"%PY%" run_experiment.py --mode fpr --method split --nts 50 100 150 200 --n_tests %N_TESTS% --n_rep %N_REP_SPLIT% --save_every 100 --out results\fpr_split_results.json
-"%PY%" run_experiment.py --mode fpr --method si --nts 50 100 150 200 --n_tests %N_TESTS% --n_rep %N_REP% --n_jobs %N_JOBS% --save_every %SAVE_EVERY% --out results\fpr_results.json
-pause
+for %%n in (40 50 60 70) do (
+    set /a "s0=400000 + 4000 * (%%n - 40)"
+    set /a "s1=s0 + 400000"
+    call :fpr split %%n !s0! 9
+    call :fpr si %%n !s0! 9
+    call :fpr si %%n !s1! 4
+)
+"%PY%" experiments\plot.py fpr
+goto :eof
+
+rem :fpr <method> <n0> <seed0> <last chunk>
+:fpr
+for /L %%c in (0,1,%4) do (
+    set /a seed=%3 + 4000 * %%c
+    "%PY%" experiments\run_experiment.py --mode fpr --method %1 --nts %2 --H 10 ^
+        --seed !seed! --n_rep 100000 --n_tests 100 --n_jobs %N_JOBS% --save_every 50 ^
+        --out %OUT%\fpr_%1_h10_ng_nt%2_seed!seed!.json
+)
+exit /b 0
